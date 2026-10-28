@@ -1,0 +1,41 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you run, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: oxtrace output
+      description: Run with `RUST_LOG=debug`. Remove anything sensitive (hosts, paths).
+      render: console
+  - type: input
+    id: version
+    attributes:
+      label: oxtrace version or commit
+      placeholder: "0.1.0 / 61ee795"
+    validations:
+      required: true
+  - type: input
+    id: kernel
+    attributes:
+      label: Kernel (`uname -r`) and architecture
+      placeholder: "6.8.0-45-generic, x86_64"
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      placeholder: "Ubuntu 24.04"
+  - type: input
+    id: tls
+    attributes:
+      label: Traced client and TLS library
+      description: e.g. Python 3.12 + OpenSSL 3.0.13 (`openssl version`), Node 22, curl 8.5

@@ -1,0 +1,10 @@
+[package]
+name = "oxtrace-common"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+license = "MIT OR GPL-2.0"
+
+[lib]
+path = "src/lib.rs"

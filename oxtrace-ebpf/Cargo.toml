@@ -1,0 +1,20 @@
+[package]
+name = "oxtrace-ebpf"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+# Programs that call GPL-only kernel helpers must be GPL-compatible.
+license = "MIT OR GPL-2.0"
+
+[dependencies]
+oxtrace-common = { path = "../oxtrace-common" }
+
+aya-ebpf = { workspace = true }
+
+[build-dependencies]
+which = { workspace = true }
+
+[[bin]]
+name = "oxtrace"
+path = "src/main.rs"
