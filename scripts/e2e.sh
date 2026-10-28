@@ -10,6 +10,7 @@ port=18443
 metrics=127.0.0.1:19464
 work=$(mktemp -d)
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$work"' EXIT
+trap 'echo "FAIL  exit $? from: $BASH_COMMAND"; cat "$work/stdout" "$work/stderr" 2>/dev/null' ERR
 
 openssl req -x509 -newkey rsa:2048 -nodes -subj /CN=localhost -days 1 \
   -keyout "$work/key.pem" -out "$work/cert.pem" 2>/dev/null

@@ -85,6 +85,20 @@ You aren't on the hook for maintaining it, but if a regression is traced back to
 we may ping you on the issue. Help is appreciated, never required. Contributors are listed in
 [CONTRIBUTORS.md](CONTRIBUTORS.md); add yourself in your PR if you like.
 
+## Releasing (maintainers)
+
+1. In a PR, bump `version` in `oxtrace/Cargo.toml` and move the `[Unreleased]` notes in
+   `CHANGELOG.md` under the new version.
+2. After it merges, tag `main` and push the tag:
+
+   ```sh
+   git tag -a v0.2.0 -m v0.2.0 && git push origin v0.2.0
+   ```
+
+The release workflow checks that the tag matches the crate version, builds static binaries
+for x86_64 and arm64, runs the end-to-end test against them, and publishes a GitHub release
+with checksums and notes taken from `CHANGELOG.md`.
+
 ## Licensing
 
 By contributing, you agree that your contributions will be licensed under the same terms as
