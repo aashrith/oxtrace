@@ -33,11 +33,12 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def stream_messages(self):
+        # Chunked, like real APIs. Closing the connection without a TLS close_notify instead
+        # makes older curl/OpenSSL 3.0 (Ubuntu 22.04) fail with "unexpected eof".
         self.send_response(200)
         self.send_header("content-type", "text/event-stream")
-        self.send_header("connection", "close")
+        self.send_header("transfer-encoding", "chunked")
         self.end_headers()
-        self.close_connection = True
         events = [
             ("message_start", {"usage": {"input_tokens": 10, "output_tokens": 1}}),
             ("content_block_delta", {"delta": {"text": "Hello"}}),
@@ -45,9 +46,11 @@ class Handler(BaseHTTPRequestHandler):
             ("message_delta", {"usage": {"output_tokens": 42}}),
         ]
         for name, data in events:
-            self.wfile.write(f"event: {name}\ndata: {json.dumps(data)}\n\n".encode())
+            chunk = f"event: {name}\ndata: {json.dumps(data)}\n\n".encode()
+            self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
             self.wfile.flush()
             time.sleep(0.1)
+        self.wfile.write(b"0\r\n\r\n")
 
     def log_message(self, *args):
         pass
