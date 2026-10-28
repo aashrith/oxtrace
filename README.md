@@ -22,7 +22,8 @@ curl               17613 POST localhost:18443 /v1/messages -> 200    307.8ms  to
 python3            17615 POST localhost:18443 /v1/chat/completions -> 200      0.7ms  tokens in=12 out=7
 ```
 
-> Status: early (v0.1). The first use case is LLM API traffic; the goal is general-purpose,
+> Status: early (v0.1). Install from [GitHub releases](#quick-start) or
+> [crates.io](https://crates.io/crates/oxtrace). The first use case is LLM API traffic; the goal is general-purpose,
 > kernel-level tracing exported via OpenTelemetry. See the [roadmap](#roadmap).
 
 ## What you get
@@ -113,31 +114,37 @@ docker run --rm -it --privileged -v "$PWD":/src oxtrace-dev scripts/e2e.sh
 
 ## Current limitations
 
-* **HTTP/1.x only.** HTTP/2 (HPACK) is not parsed yet. Python `httpx`/`requests`, curl and
-  Node's `fetch` default to HTTP/1.1 against LLM APIs.
-* **OpenSSL API only.** Go's `crypto/tls`, rustls and Java's JSSE aren't hooked yet. Binaries
-  that statically link OpenSSL/BoringSSL with symbols can be targeted with `--target <path>`.
-* **Compressed responses:** token usage isn't extracted from gzip-encoded bodies.
-* At most the first 16 KiB of each read/write is inspected, so usage at the end of a very
-  large non-streamed response can be missed.
-* Runs as root. Processes are labeled by name; there's no container/Kubernetes awareness yet.
+* **HTTP/1.x only** ([#10](https://github.com/aashrith/oxtrace/issues/10)). HTTP/2 (HPACK) is not parsed yet. Python
+  `httpx`/`requests`, curl and Node's `fetch` default to HTTP/1.1 against LLM APIs.
+* **OpenSSL API only** ([#12](https://github.com/aashrith/oxtrace/issues/12), [#13](https://github.com/aashrith/oxtrace/issues/13)). Go's `crypto/tls`, rustls and Java's JSSE
+  aren't hooked yet. Binaries that statically link OpenSSL/BoringSSL with symbols can be
+  targeted with `--target <path>`.
+* **Compressed responses** ([#7](https://github.com/aashrith/oxtrace/issues/7)): token usage isn't extracted from gzip-encoded bodies.
+* **16 KiB per read/write** ([#8](https://github.com/aashrith/oxtrace/issues/8)): usage at the end of a very large non-streamed
+  response can be missed.
+* **Runs as root** ([#14](https://github.com/aashrith/oxtrace/issues/14)). Processes are labeled by name; there's no
+  container/Kubernetes awareness yet ([#11](https://github.com/aashrith/oxtrace/issues/11)).
 
 ## Roadmap
 
-- [ ] OpenTelemetry (OTLP) traces and metrics export
-- [ ] Container and Kubernetes metadata (cgroup → pod), DaemonSet and Helm chart
-- [ ] HTTP/2 and gzip support
-- [ ] Probes for Go `crypto/tls` and rustls
-- [ ] Cost estimation per model
-- [ ] Run with `CAP_BPF` + `CAP_PERFMON` instead of root
-- [ ] Published overhead benchmarks (CPU %, added p99 latency)
-- [ ] Older LTS kernels in CI (5.10, 5.15) via little-vm-helper
+Progress is tracked in the pinned [roadmap issue](https://github.com/aashrith/oxtrace/issues/18). Highlights:
+
+* OpenTelemetry (OTLP) export with GenAI semantic conventions: [#9](https://github.com/aashrith/oxtrace/issues/9)
+* Per-model token labels and cost estimation: [#5](https://github.com/aashrith/oxtrace/issues/5), [#6](https://github.com/aashrith/oxtrace/issues/6)
+* HTTP/2, gzip and large responses: [#10](https://github.com/aashrith/oxtrace/issues/10), [#7](https://github.com/aashrith/oxtrace/issues/7), [#8](https://github.com/aashrith/oxtrace/issues/8)
+* Go `crypto/tls` and rustls: [#12](https://github.com/aashrith/oxtrace/issues/12), [#13](https://github.com/aashrith/oxtrace/issues/13)
+* Containers, Kubernetes and Helm: [#11](https://github.com/aashrith/oxtrace/issues/11)
+* Least-privilege operation, overhead benchmarks and older-kernel CI: [#14](https://github.com/aashrith/oxtrace/issues/14),
+  [#15](https://github.com/aashrith/oxtrace/issues/15), [#16](https://github.com/aashrith/oxtrace/issues/16)
+
+Have an idea? [Open a feature request](https://github.com/aashrith/oxtrace/issues/new/choose).
 
 ## Getting help and contributing
 
 * Questions and ideas: [SUPPORT.md](SUPPORT.md)
-* Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Issues labeled `good first issue` are a
-  good place to start.
+* Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). New here? Pick a
+  [good first issue](https://github.com/aashrith/oxtrace/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
+  or browse [help wanted](https://github.com/aashrith/oxtrace/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22).
 * Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 * Security issues: [SECURITY.md](SECURITY.md)
 * Release notes: [CHANGELOG.md](CHANGELOG.md)
