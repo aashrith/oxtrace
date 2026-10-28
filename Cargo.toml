@@ -30,7 +30,7 @@ libc = { version = "0.2.159", default-features = false }
 log = { version = "0.4.22", default-features = false }
 prometheus-client = { version = "0.25.1", default-features = false }
 tokio = { version = "1.53.3", default-features = false }
-which = { version = "6.0.0", default-features = false }
+which = { version = "8.0.6", default-features = false }
 
 [profile.release.package.oxtrace-ebpf]
 debug = 2
