@@ -3,6 +3,11 @@
 Thanks for your interest! Bug reports, ideas, docs fixes and pull requests are all welcome,
 and you don't need to be an eBPF expert. Many useful changes are pure userspace Rust.
 
+Looking for something to work on? See the pinned
+[roadmap](https://github.com/aashrith/oxtrace/issues/18) and the
+[good first issues](https://github.com/aashrith/oxtrace/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
+Comment on an issue to claim it before starting, so work isn't duplicated.
+
 Everyone taking part is expected to follow the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Asking questions and reporting issues
