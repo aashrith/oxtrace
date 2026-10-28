@@ -1,3 +1,5 @@
+use std::{env, fs, path::PathBuf};
+
 use anyhow::{Context as _, anyhow};
 use aya_build::Toolchain;
 
@@ -6,10 +8,12 @@ fn main() -> anyhow::Result<()> {
         .no_deps()
         .exec()
         .context("MetadataCommand::exec")?;
-    let ebpf_package = packages
+    let Some(ebpf_package) = packages
         .into_iter()
         .find(|cargo_metadata::Package { name, .. }| name.as_str() == "oxtrace-ebpf")
-        .ok_or_else(|| anyhow!("oxtrace-ebpf package not found"))?;
+    else {
+        return use_prebuilt();
+    };
     let cargo_metadata::Package {
         name,
         manifest_path,
@@ -24,4 +28,24 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
     aya_build::build_ebpf([ebpf_package], Toolchain::default())
+}
+
+/// Building outside the workspace (e.g. `cargo install oxtrace` from crates.io), where the
+/// eBPF sources aren't available: use the object the release workflow compiled for this
+/// architecture and packaged with the crate. This also spares users a nightly toolchain and
+/// bpf-linker.
+fn use_prebuilt() -> anyhow::Result<()> {
+    let arch = env::var("CARGO_CFG_TARGET_ARCH")?;
+    let src = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?)
+        .join("bpf")
+        .join(format!("oxtrace-{arch}.o"));
+    let dst = PathBuf::from(env::var("OUT_DIR")?).join("oxtrace");
+    println!("cargo::rerun-if-changed={}", src.display());
+    fs::copy(&src, &dst).with_context(|| {
+        format!(
+            "no prebuilt eBPF object for {arch} at {}; build from a git checkout instead",
+            src.display()
+        )
+    })?;
+    Ok(())
 }

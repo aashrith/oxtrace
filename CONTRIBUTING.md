@@ -87,8 +87,9 @@ we may ping you on the issue. Help is appreciated, never required. Contributors 
 
 ## Releasing (maintainers)
 
-1. In a PR, bump `version` in `oxtrace/Cargo.toml` and move the `[Unreleased]` notes in
-   `CHANGELOG.md` under the new version.
+1. In a PR, bump `workspace.package.version` and the `oxtrace-common` dependency version in
+   the root `Cargo.toml`, and move the `[Unreleased]` notes in `CHANGELOG.md` under the new
+   version.
 2. After it merges, tag `main` and push the tag:
 
    ```sh
@@ -97,7 +98,8 @@ we may ping you on the issue. Help is appreciated, never required. Contributors 
 
 The release workflow checks that the tag matches the crate version, builds static binaries
 for x86_64 and arm64, runs the end-to-end test against them, and publishes a GitHub release
-with checksums and notes taken from `CHANGELOG.md`.
+with checksums and notes taken from `CHANGELOG.md`. It also publishes `oxtrace-common` and
+`oxtrace` to crates.io, including the precompiled eBPF objects.
 
 ## Licensing
 

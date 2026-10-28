@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-28
+
+### Added
+
+- Published on crates.io: `cargo install oxtrace` works with stable Rust alone. The crate
+  ships precompiled eBPF programs for x86_64 and aarch64, so neither nightly nor bpf-linker
+  is needed.
+
 ## [0.1.0] - 2026-10-28
 
 ### Added
@@ -21,5 +29,6 @@ All notable changes to this project are documented here. The format is based on
 - `--pid`, `--target`, `--metrics-addr`, `--idle-ms` and `--quiet` options.
 - End-to-end test against a fake LLM API and CI on x86_64 and arm64 kernels.
 
-[Unreleased]: https://github.com/aashrith/oxtrace/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/aashrith/oxtrace/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/aashrith/oxtrace/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/aashrith/oxtrace/releases/tag/v0.1.0

@@ -67,6 +67,14 @@ curl -fsSL "https://github.com/aashrith/oxtrace/releases/latest/download/oxtrace
 sudo ./oxtrace-$arch-unknown-linux-musl/oxtrace
 ```
 
+Or install from [crates.io](https://crates.io/crates/oxtrace) (stable Rust 1.88+ only; the
+eBPF programs ship precompiled):
+
+```sh
+cargo install oxtrace
+sudo ~/.cargo/bin/oxtrace
+```
+
 Or build from source:
 
 ```sh
