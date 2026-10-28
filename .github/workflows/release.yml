@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Build and test the release binaries on PRs that change this workflow, without publishing.
+  pull_request:
+    paths: [.github/workflows/release.yml]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  BPF_LINKER_VERSION: v0.12.0
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: nightly
+          components: rust-src
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - name: Install bpf-linker
+        run: |
+          curl -fsSL "https://github.com/aya-rs/bpf-linker/releases/download/${BPF_LINKER_VERSION}/bpf-linker-$(uname -m)-unknown-linux-musl.tar.zst" \
+            | sudo tar --zstd -xpf - -C /usr/local/bin
+      - name: Check tag matches crate version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          crate=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "oxtrace") | .version')
+          if [ "v$crate" != "$VERSION" ]; then
+            echo "::error::tag $VERSION does not match crate version $crate"
+            exit 1
+          fi
+      # No build cache here: release binaries are always built from scratch.
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Test the release binary
+        run: sudo scripts/e2e.sh target/${{ matrix.target }}/release/oxtrace
+      - name: Package
+        run: |
+          # Unversioned names keep releases/latest/download/<asset> URLs stable.
+          dir=oxtrace-${{ matrix.target }}
+          mkdir "$dir"
+          cp target/${{ matrix.target }}/release/oxtrace README.md CHANGELOG.md LICENSE-* "$dir/"
+          tar -czf "$dir.tar.gz" "$dir"
+          sha256sum "$dir.tar.gz" > "$dir.tar.gz.sha256"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.target }}
+          path: oxtrace-*.tar.gz*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Extract release notes from CHANGELOG.md
+        run: scripts/release-notes.sh "${VERSION#v}" > notes.md
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=()
+          if [[ $VERSION == *-* ]]; then prerelease=(--prerelease); fi
+          gh release create "$VERSION" dist/* \
+            --verify-tag --title "$VERSION" --notes-file notes.md "${prerelease[@]}"

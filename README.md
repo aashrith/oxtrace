@@ -58,6 +58,17 @@ fields above.
 Requirements: Linux 5.8+ (BPF ring buffer), root, and a process using OpenSSL's `libssl`
 (curl, CPython, Ruby, PHP, most distro-packaged software).
 
+Download a static binary for x86_64 or arm64 from the
+[latest release](https://github.com/aashrith/oxtrace/releases/latest):
+
+```sh
+arch=$(uname -m)  # x86_64 or aarch64
+curl -fsSL "https://github.com/aashrith/oxtrace/releases/latest/download/oxtrace-$arch-unknown-linux-musl.tar.gz" | tar -xz
+sudo ./oxtrace-$arch-unknown-linux-musl/oxtrace
+```
+
+Or build from source:
+
 ```sh
 rustup toolchain install nightly --component rust-src
 # bpf-linker: see https://github.com/aya-rs/bpf-linker#installation
