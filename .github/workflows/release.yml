@@ -131,9 +131,16 @@ jobs:
       - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token || secrets.CARGO_REGISTRY_TOKEN }}
+        # Cargo counts the gitignored eBPF objects as uncommitted changes, hence --allow-dirty;
+        # check first that nothing else differs from the tagged commit.
         run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::working tree has changes besides oxtrace/bpf"
+            exit 1
+          fi
           if [ "$DRY_RUN" = true ]; then
-            cargo publish --workspace --locked --dry-run
+            cargo publish --workspace --locked --allow-dirty --dry-run
           else
-            cargo publish --workspace --locked
+            cargo publish --workspace --locked --allow-dirty
           fi
