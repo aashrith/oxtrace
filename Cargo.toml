@@ -8,6 +8,7 @@ members = [
 default-members = ["oxtrace", "oxtrace-common"]
 
 [workspace.package]
+version = "0.1.1"
 license = "MIT OR Apache-2.0"
 edition = "2024"
 # `if let` chains.
@@ -15,6 +16,9 @@ rust-version = "1.88"
 repository = "https://github.com/aashrith/oxtrace"
 
 [workspace.dependencies]
+# Keep in step with `workspace.package.version`.
+oxtrace-common = { path = "oxtrace-common", version = "0.1.1" }
+
 aya = { version = "0.14.0", default-features = false }
 aya-build = { version = "0.2.0", default-features = false }
 aya-ebpf = { version = "0.2.1", default-features = false }
