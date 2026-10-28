@@ -1,5 +1,12 @@
 # oxtrace
 
+[![CI](https://github.com/aashrith/oxtrace/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aashrith/oxtrace/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/aashrith/oxtrace)](https://github.com/aashrith/oxtrace/releases/latest)
+[![crates.io](https://img.shields.io/crates/v/oxtrace)](https://crates.io/crates/oxtrace)
+[![License](https://img.shields.io/badge/license-MIT%20%7C%20Apache--2.0%20%7C%20GPL--2.0-blue)](#license)
+[![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust)](https://www.rust-lang.org)
+[![Linux 5.8+](https://img.shields.io/badge/linux-5.8%2B-yellow?logo=linux&logoColor=white)](#quick-start)
+
 **Zero-instrumentation observability powered by eBPF and Rust ([Aya](https://aya-rs.dev)).**
 
 oxtrace attaches uprobes to libssl and reads TLS traffic *as plaintext, inside the kernel*,
