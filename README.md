@@ -119,7 +119,6 @@ docker run --rm -it --privileged -v "$PWD":/src oxtrace-dev scripts/e2e.sh
 * **OpenSSL API only** ([#12](https://github.com/aashrith/oxtrace/issues/12), [#13](https://github.com/aashrith/oxtrace/issues/13)). Go's `crypto/tls`, rustls and Java's JSSE
   aren't hooked yet. Binaries that statically link OpenSSL/BoringSSL with symbols can be
   targeted with `--target <path>`.
-* **Compressed responses** ([#7](https://github.com/aashrith/oxtrace/issues/7)): token usage isn't extracted from gzip-encoded bodies.
 * **16 KiB per read/write** ([#8](https://github.com/aashrith/oxtrace/issues/8)): usage at the end of a very large non-streamed
   response can be missed.
 * **Runs as root** ([#14](https://github.com/aashrith/oxtrace/issues/14)). Processes are labeled by name; there's no
@@ -131,7 +130,7 @@ Progress is tracked in the pinned [roadmap issue](https://github.com/aashrith/ox
 
 * OpenTelemetry (OTLP) export with GenAI semantic conventions: [#9](https://github.com/aashrith/oxtrace/issues/9)
 * Per-model token labels and cost estimation: [#5](https://github.com/aashrith/oxtrace/issues/5), [#6](https://github.com/aashrith/oxtrace/issues/6)
-* HTTP/2, gzip and large responses: [#10](https://github.com/aashrith/oxtrace/issues/10), [#7](https://github.com/aashrith/oxtrace/issues/7), [#8](https://github.com/aashrith/oxtrace/issues/8)
+* HTTP/2 and large responses: [#10](https://github.com/aashrith/oxtrace/issues/10), [#8](https://github.com/aashrith/oxtrace/issues/8)
 * Go `crypto/tls` and rustls: [#12](https://github.com/aashrith/oxtrace/issues/12), [#13](https://github.com/aashrith/oxtrace/issues/13)
 * Containers, Kubernetes and Helm: [#11](https://github.com/aashrith/oxtrace/issues/11)
 * Least-privilege operation, overhead benchmarks and older-kernel CI: [#14](https://github.com/aashrith/oxtrace/issues/14),

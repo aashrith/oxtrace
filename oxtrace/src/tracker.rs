@@ -3,9 +3,12 @@ use std::{collections::HashMap, sync::Arc};
 use oxtrace_common::{DIR_READ, DIR_WRITE, TlsEvent};
 
 use crate::{
-    http::{self, Request},
+    http::{self, Request, ResponseEncoding},
     metrics::{EndpointLabels, Metrics, RequestLabels, TlsLabels, TokenLabels},
 };
+
+/// Maximum decompressed body bytes kept per exchange, to bound memory.
+const MAX_BODY_BYTES: usize = 65536;
 
 /// A request/response pair in flight on one TLS session.
 struct Exchange {
@@ -17,6 +20,9 @@ struct Exchange {
     status: Option<u16>,
     input_tokens: u64,
     output_tokens: u64,
+    encoding: Option<ResponseEncoding>,
+    /// Accumulated compressed body bytes for gzip responses.
+    compressed_body: Vec<u8>,
 }
 
 /// Turns raw TLS events into HTTP exchanges and metrics.
@@ -75,6 +81,8 @@ impl Tracker {
                         status: None,
                         input_tokens: 0,
                         output_tokens: 0,
+                        encoding: None,
+                        compressed_body: Vec::new(),
                     },
                 );
             }
@@ -92,25 +100,25 @@ impl Tracker {
                         .get_or_create(&endpoint(ex))
                         .observe(seconds(ev.ts_ns - ex.started_ns));
                 }
-                let usage = http::scan_usage(data);
-                // Counters are cumulative, so record only the growth since the last chunk.
-                for (seen, total, kind) in [
-                    (usage.input, &mut ex.input_tokens, "input"),
-                    (usage.output, &mut ex.output_tokens, "output"),
-                ] {
-                    if let Some(n) = seen
-                        && n > *total
-                    {
-                        self.metrics
-                            .tokens
-                            .get_or_create(&TokenLabels {
-                                comm: ex.comm.clone(),
-                                host: ex.req.host.clone(),
-                                kind,
-                            })
-                            .inc_by(n - *total);
-                        *total = n;
-                    }
+                // Detect response encoding from headers on the first read.
+                if ex.encoding.is_none() {
+                    ex.encoding = http::parse_response_encoding(data);
+                }
+                let is_gzip = ex.encoding.is_some_and(|e| e.gzip);
+                if is_gzip {
+                    // Accumulate compressed body bytes for decompression at finish.
+                    let body = if ex.compressed_body.is_empty() {
+                        // First chunk: extract body after headers.
+                        http::body_after_headers(data).unwrap_or(data)
+                    } else {
+                        data
+                    };
+                    let room = MAX_BODY_BYTES.saturating_sub(ex.compressed_body.len());
+                    ex.compressed_body
+                        .extend_from_slice(&body[..body.len().min(room)]);
+                } else {
+                    let usage = http::scan_usage(data);
+                    record_usage(&self.metrics, ex, usage);
                 }
             }
             _ => {}
@@ -139,10 +147,21 @@ impl Tracker {
         }
     }
 
-    fn finish(&self, ex: Exchange) {
+    fn finish(&self, mut ex: Exchange) {
         let Some(status) = ex.status else {
             return;
         };
+        // Decompress gzip body accumulated during the exchange and scan for tokens.
+        if ex.encoding.is_some_and(|e| e.gzip) && !ex.compressed_body.is_empty() {
+            let body = if ex.encoding.is_some_and(|e| e.chunked) {
+                http::dechunk(&ex.compressed_body)
+            } else {
+                std::mem::take(&mut ex.compressed_body)
+            };
+            let plain = http::decompress_gzip(&body, MAX_BODY_BYTES);
+            let usage = http::scan_usage(&plain);
+            record_usage(&self.metrics, &mut ex, usage);
+        }
         let elapsed = seconds(ex.last_ns - ex.started_ns);
         self.metrics
             .requests
@@ -204,6 +223,27 @@ fn endpoint(ex: &Exchange) -> EndpointLabels {
         comm: ex.comm.clone(),
         host: ex.req.host.clone(),
         path: ex.req.path.clone(),
+    }
+}
+
+fn record_usage(metrics: &Metrics, ex: &mut Exchange, usage: http::Usage) {
+    for (seen, total, kind) in [
+        (usage.input, &mut ex.input_tokens, "input"),
+        (usage.output, &mut ex.output_tokens, "output"),
+    ] {
+        if let Some(n) = seen
+            && n > *total
+        {
+            metrics
+                .tokens
+                .get_or_create(&TokenLabels {
+                    comm: ex.comm.clone(),
+                    host: ex.req.host.clone(),
+                    kind,
+                })
+                .inc_by(n - *total);
+            *total = n;
+        }
     }
 }
 

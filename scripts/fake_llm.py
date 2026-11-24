@@ -3,6 +3,7 @@
 usage: fake_llm.py CERT KEY PORT
 """
 
+import gzip
 import json
 import ssl
 import sys
@@ -19,6 +20,8 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_messages()
         elif self.path.startswith("/v1/messages"):
             self.json({"id": "msg_1", "usage": {"input_tokens": 25, "output_tokens": 154}})
+        elif self.path.startswith("/v1/chat/completions") and "gzip" in self.headers.get("accept-encoding", ""):
+            self.json_gzip({"id": "chatcmpl-1", "usage": {"prompt_tokens": 30, "completion_tokens": 20}})
         elif self.path.startswith("/v1/chat/completions"):
             self.json({"id": "chatcmpl-1", "usage": {"prompt_tokens": 12, "completion_tokens": 7}})
         else:
@@ -28,6 +31,15 @@ class Handler(BaseHTTPRequestHandler):
         body = json.dumps(obj).encode()
         self.send_response(200)
         self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def json_gzip(self, obj):
+        body = gzip.compress(json.dumps(obj).encode())
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-encoding", "gzip")
         self.send_header("content-length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

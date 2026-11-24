@@ -19,6 +19,7 @@ oxtrace-common = { workspace = true }
 anyhow = { workspace = true, default-features = true }
 aya = { workspace = true }
 env_logger = { workspace = true }
+flate2 = { version = "1.0.35", default-features = false, features = ["rust_backend"] }
 libc = { workspace = true }
 log = { workspace = true }
 prometheus-client = { workspace = true }

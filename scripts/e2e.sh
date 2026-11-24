@@ -32,6 +32,8 @@ import ssl, sys, urllib.request
 req = urllib.request.Request(sys.argv[1] + "/v1/chat/completions", data=b"{}")
 urllib.request.urlopen(req, context=ssl._create_unverified_context()).read()
 PY
+# curl with Accept-Encoding: gzip triggers a compressed response.
+curl -sk --compressed "$url/v1/chat/completions" -H 'content-type: application/json' -d '{}' >/dev/null
 
 sleep 1.5
 curl -s "http://$metrics/metrics" >"$work/metrics"
@@ -46,11 +48,12 @@ expect() {
   fi
 }
 host="localhost:$port"
-expect "oxtrace_llm_tokens_total{comm=\"curl\",host=\"$host\",kind=\"input\"} 35"
-expect "oxtrace_llm_tokens_total{comm=\"curl\",host=\"$host\",kind=\"output\"} 196"
+expect "oxtrace_llm_tokens_total{comm=\"curl\",host=\"$host\",kind=\"input\"} 65"
+expect "oxtrace_llm_tokens_total{comm=\"curl\",host=\"$host\",kind=\"output\"} 216"
 expect "oxtrace_llm_tokens_total{comm=\"python3\",host=\"$host\",kind=\"input\"} 12"
 expect "oxtrace_llm_tokens_total{comm=\"python3\",host=\"$host\",kind=\"output\"} 7"
 expect "oxtrace_http_requests_total{comm=\"curl\",host=\"$host\",method=\"POST\",path=\"/v1/messages\",status=\"200\"} 2"
+expect "oxtrace_http_requests_total{comm=\"curl\",host=\"$host\",method=\"POST\",path=\"/v1/chat/completions\",status=\"200\"} 1"
 expect "oxtrace_http_requests_total{comm=\"python3\",host=\"$host\",method=\"POST\",path=\"/v1/chat/completions\",status=\"200\"} 1"
 
 echo "--- oxtrace output"

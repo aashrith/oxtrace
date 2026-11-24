@@ -98,6 +98,99 @@ fn number_after(rest: &[u8]) -> Option<u64> {
     std::str::from_utf8(&rest[..digits]).ok()?.parse().ok()
 }
 
+/// Content and transfer encoding flags parsed from a response's header block.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ResponseEncoding {
+    pub gzip: bool,
+    pub chunked: bool,
+}
+
+/// Parses encoding-related headers from the first response chunk.
+/// Returns `None` if the header block isn't complete yet (no `\r\n\r\n`).
+pub fn parse_response_encoding(data: &[u8]) -> Option<ResponseEncoding> {
+    let hdr = head(data);
+    if hdr.len() == data.len() && !data.windows(4).any(|w| w == b"\r\n\r\n") {
+        return None;
+    }
+    let mut enc = ResponseEncoding::default();
+    for line in hdr.split("\r\n").skip(1) {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim();
+        if name.eq_ignore_ascii_case("content-encoding")
+            && value.eq_ignore_ascii_case("gzip")
+        {
+            enc.gzip = true;
+        }
+        if name.eq_ignore_ascii_case("transfer-encoding")
+            && value.to_ascii_lowercase().contains("chunked")
+        {
+            enc.chunked = true;
+        }
+    }
+    Some(enc)
+}
+
+/// Returns the body portion of `data` (everything after `\r\n\r\n`), or `None`.
+pub fn body_after_headers(data: &[u8]) -> Option<&[u8]> {
+    data.windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map(|i| &data[i + 4..])
+}
+
+/// Removes HTTP/1.1 chunked transfer-encoding framing, returning the unchunked payload.
+/// Best-effort: truncated chunks are included as-is.
+pub fn dechunk(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len());
+    let mut pos = 0;
+    while pos < data.len() {
+        let remaining = &data[pos..];
+        let Some(crlf) = remaining.windows(2).position(|w| w == b"\r\n") else {
+            break;
+        };
+        let size_str = match std::str::from_utf8(&remaining[..crlf]) {
+            Ok(s) => s.trim(),
+            Err(_) => break,
+        };
+        let chunk_len = match usize::from_str_radix(size_str, 16) {
+            Ok(n) => n,
+            Err(_) => break,
+        };
+        if chunk_len == 0 {
+            break;
+        }
+        let chunk_start = pos + crlf + 2;
+        let chunk_end = (chunk_start + chunk_len).min(data.len());
+        out.extend_from_slice(&data[chunk_start..chunk_end]);
+        // Skip past chunk data + trailing \r\n.
+        pos = chunk_end + 2;
+    }
+    out
+}
+
+/// Decompresses gzip data, returning the plaintext. Returns an empty vec on error.
+/// Bounded to `max_bytes` of output to limit memory usage.
+pub fn decompress_gzip(data: &[u8], max_bytes: usize) -> Vec<u8> {
+    use flate2::read::GzDecoder;
+    use std::io::Read;
+    let mut decoder = GzDecoder::new(data);
+    let mut out = vec![0u8; max_bytes];
+    let mut total = 0;
+    loop {
+        match decoder.read(&mut out[total..]) {
+            Ok(0) => break,
+            Ok(n) => total += n,
+            Err(_) => break,
+        }
+        if total >= max_bytes {
+            break;
+        }
+    }
+    out.truncate(total);
+    out
+}
+
 /// The header block (everything before the blank line), lossily decoded.
 fn head(data: &[u8]) -> &str {
     let end = data
@@ -189,5 +282,146 @@ mod tests {
         assert_eq!(scan_usage(b"{\"output_tokens\":"), Usage::default());
         assert_eq!(scan_usage(b""), Usage::default());
         assert!(parse_request(b"POST /v1/chat/completions HTTP/1.1\r\nHo").is_some());
+    }
+
+    #[test]
+    fn parses_gzip_content_encoding() {
+        let resp = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\ncontent-type: application/json\r\n\r\n";
+        let enc = parse_response_encoding(resp).unwrap();
+        assert!(enc.gzip);
+        assert!(!enc.chunked);
+    }
+
+    #[test]
+    fn parses_chunked_transfer_encoding() {
+        let resp = b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n";
+        let enc = parse_response_encoding(resp).unwrap();
+        assert!(!enc.gzip);
+        assert!(enc.chunked);
+    }
+
+    #[test]
+    fn parses_gzip_and_chunked() {
+        let resp = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\ntransfer-encoding: chunked\r\n\r\n";
+        let enc = parse_response_encoding(resp).unwrap();
+        assert!(enc.gzip);
+        assert!(enc.chunked);
+    }
+
+    #[test]
+    fn no_encoding_headers() {
+        let resp = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n";
+        let enc = parse_response_encoding(resp).unwrap();
+        assert!(!enc.gzip);
+        assert!(!enc.chunked);
+    }
+
+    #[test]
+    fn incomplete_headers_returns_none() {
+        let resp = b"HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\n";
+        assert!(parse_response_encoding(resp).is_none());
+    }
+
+    #[test]
+    fn body_after_headers_extracts_body() {
+        let data = b"HTTP/1.1 200 OK\r\n\r\nhello";
+        assert_eq!(body_after_headers(data), Some(b"hello".as_slice()));
+    }
+
+    #[test]
+    fn dechunk_single_chunk() {
+        let chunked = b"5\r\nhello\r\n0\r\n\r\n";
+        assert_eq!(dechunk(chunked), b"hello");
+    }
+
+    #[test]
+    fn dechunk_multiple_chunks() {
+        let chunked = b"5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n";
+        assert_eq!(dechunk(chunked), b"hello world");
+    }
+
+    #[test]
+    fn dechunk_truncated_input() {
+        let chunked = b"ff\r\npartial";
+        let result = dechunk(chunked);
+        assert_eq!(result, b"partial");
+    }
+
+    #[test]
+    fn decompress_gzip_roundtrip() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        let original = br#"{"usage":{"input_tokens":25,"output_tokens":154}}"#;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(original).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let decompressed = decompress_gzip(&compressed, 4096);
+        assert_eq!(decompressed, original);
+    }
+
+    #[test]
+    fn decompress_gzip_bounded() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        let original = vec![b'x'; 8192];
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(&original).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let decompressed = decompress_gzip(&compressed, 1024);
+        assert_eq!(decompressed.len(), 1024);
+    }
+
+    #[test]
+    fn decompress_gzip_invalid_data() {
+        let garbage = b"not gzip at all";
+        let result = decompress_gzip(garbage, 4096);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn scan_usage_from_gzip_body() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        let json = br#"{"usage":{"input_tokens":25,"output_tokens":154}}"#;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(json).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let decompressed = decompress_gzip(&compressed, 65536);
+        let usage = scan_usage(&decompressed);
+        assert_eq!(
+            usage,
+            Usage {
+                input: Some(25),
+                output: Some(154)
+            }
+        );
+    }
+
+    #[test]
+    fn dechunk_then_decompress_gzip() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+        let json = br#"{"usage":{"prompt_tokens":12,"completion_tokens":7}}"#;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(json).unwrap();
+        let compressed = encoder.finish().unwrap();
+        // Wrap in chunked framing.
+        let mut chunked = format!("{:x}\r\n", compressed.len()).into_bytes();
+        chunked.extend_from_slice(&compressed);
+        chunked.extend_from_slice(b"\r\n0\r\n\r\n");
+        let dechunked = dechunk(&chunked);
+        let decompressed = decompress_gzip(&dechunked, 65536);
+        let usage = scan_usage(&decompressed);
+        assert_eq!(
+            usage,
+            Usage {
+                input: Some(12),
+                output: Some(7)
+            }
+        );
     }
 }
